@@ -892,7 +892,7 @@ nhanes_data <- nhanes_data |>
     ),
     race_ethn_5cat = case_when(
       race_6cat %in% c('Mexican American', 'Other Hispanic') ~ "Hispanic",
-      !(race_6cat %in% c('Mexican American', 'Other Hispanic')) ~ race_5cat,
+      !(race_6cat %in% c('Mexican American', 'Other Hispanic')) ~ race_6cat,
       is.na(race_6cat) ~ NA
     )
   ) |>
@@ -1882,7 +1882,6 @@ We exported our attribute tables to CSV, and codebooks to DOCX
 ```{r}
 write.csv(combined_table, here('data', 'combined_data_attributes.csv'))
 write.csv(subset_table, here('data', 'subset_included_data_attributes.csv'))
-
 
 # NOTE: issue with codebookr erroneously places title at end, and requires 
 # manual adjustment of DOCX after creation!
