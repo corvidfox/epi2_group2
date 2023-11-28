@@ -1,0 +1,580 @@
+---
+title: "Epi 3 Data Analysis"
+format: pdf
+author: "Qiheng(Michael) Yan"
+date: "2023-11-21"
+---
+
+*Document Transfered to QMD and Modified by Morrigan Mahady 2023-11-27*
+
+This analysis follows the inclusion/exclusion criteria and uses a subset of 1168 subjects (using subset_1168_data)
+
+# Imports
+
+```{r, message=FALSE}
+library(tidyverse)
+library(here)
+library(stats)
+library(ggplot2)
+library(expss)
+
+set.seed(1028)
+source(here("R", "chi_or_fisher.R"))
+```
+
+```{r}
+# Import the dataset
+complete_data<-readRDS(here("data", "combined_data.rds"))
+subset_1168_data<-readRDS(here("data","subset_1168.rds"))
+```
+
+# Modification
+
+As we had no subjects in our data set that were uninsured, we elimitated the related values from our insurance categorization variables.
+
+```{r}
+table(subset_1168_data$ins_type)
+```
+
+```{r}
+subset_1168_data <- subset_1168_data |>
+  mutate(ins_type = factor(
+    ins_type,
+    levels = levels(ins_type)[levels(ins_type) != 'Uninsured']
+    )
+  )
+```
+
+# Analyses
+
+## Bivariate Analysis
+In bivariate analysis, we'll use Chi-squared tests for categorical variables like health insurance status, race/ethnicity, gender, and a T-test for continuous variables like age.
+
+The results from the bivariate analyses provide valuable insights into the relationships between adherence to prescribed cholesterol medication and various factors such as family income, health insurance status, race/ethnicity, gender, marital status, alcohol use, tobacco use, and age. 
+
+1. **Family Income vs. Adherence**:
+
+**Chi-squared test result**: 
+$$X^2=7.6725, df=2, p-value=0.02157$$
+**Interpretation**: There is a statistically significant association between family income and medication adherence. The low p-value suggests that differences in medication adherence across different income categories are not likely due to chance.
+
+```{r}
+# Chi-squared test for medication adherence and family income (categorical)
+biv_income_cat <- chi_or_fisher(subset_1168_data, 'adherence', 'income_cat')
+print(biv_income_cat)
+```
+
+Analysis was repeated using the continuous variable for family income ratio.
+
+A t-test requires satisfaction of assumptions of approximate normality in distribution in the two groups, and approximate equal variance.
+
+The sample size in both groups is 400+, so per the central limit theorem the distributions may be treated as approximately normal.
+
+**F-test result**:
+$$F=1.0292, num \ df = 400, denom \ df = 766, p-value=0.7346$$
+**Interpretation**: As the p-value is above the significance threshold of 0.05, we conclude that the two groups have equal variance.
+
+```{r}
+f_income <- var.test(income_ratio ~ adherence, subset_1168_data, 
+         alternative = "two.sided")
+print(f_income)
+```
+
+**T-test result**:
+$$t=-2.0542, df=1166, p-value = 0.04018$$
+**Interpretation**: There is a statistically significant association between family income ratio and medication adherence. The low p-value suggests that differences in medication adherence across different income categories are not likely due to chance. The consistency of these results indicate our analyses are robust for use of categorical family income ratio.
+
+```{r}
+biv_income_ratio <- t.test(subset_1168_data$income_ratio ~ subset_1168_data$adherence, 
+                  var.equal = TRUE)
+print(biv_income_ratio)
+```
+
+2. **Total Health Insurance Status vs. Adherence**:
+
+Fisher's Exact due to low expected counts
+
+```{r, warning = False}
+print(chisq.test(
+  table(subset_1168_data$adherence, subset_1168_data$ins_classif)
+  )$expected
+  )
+```
+
+**Fishers-Exact test result**: 
+$$p-value=0.004998$$
+**Interpretation**: There is a strong statistically significant association between insurance status and medication adherence. The very low p-value indicates that the observed differences in adherence across various insurance classifications are unlikely to be due to random variation.
+
+```{r}
+biv_ins_total <- chi_or_fisher(subset_1168_data, 'adherence', 'ins_classif')
+print(biv_ins_total)
+```
+
+3. **Health Insurance Type vs. Adherence**:
+
+**Chi-squared test result**: 
+$$X^2=23.472, df=2, p-value=7.999 \times 10^{-6}$$
+**Interpretation**: There is a strong statistically significant association between insurance type and medication adherence. The very low p-value indicates that the observed differences in adherence across various insurance types are unlikely to be due to random variation.
+
+```{r}
+biv_ins_type <- chi_or_fisher(subset_1168_data, 'adherence', 'ins_type')
+print(biv_ins_type)
+```
+This was also tested with Private and Government insurance status separated, for sensitivity of the combined classification.
+
+**Chi-squared test result**: 
+$$X^2=356.23, df=3, p-value < 2.2 \times 10^{-16}$$
+**Interpretation**: There is a strong statistically significant association between insurance type and medication adherence. The very low p-value indicates that the observed differences in adherence across various insurance types are unlikely to be due to random variation. The consistency of results indicates our analyses were robust to our classification of insurance status.
+
+```{r}
+print(chisq.test(
+  ftable(xtabs(~ adherence + ins_govt + ins_private, data = subset_1168_data))
+  ))
+```
+
+
+4. **Race/Ethnicity vs. Adherence**:
+
+**Chi-squared test result**: 
+$$X^2=9.8146, df=4, p-value=0.04367$$
+**Interpretation**: The association between race/ethnicity and medication adherence was statistically significant at the conventional alpha level of 0.05. This suggests that differences in adherence across different racial/ethnic categories was not likely due to chance.
+
+```{r}
+biv_race <- chi_or_fisher(subset_1168_data, 'adherence', 'race_ethn_5cat')
+print(biv_race)
+```
+
+This testing was repeated without collapsing "Mexican American" and "Other Hispanic" into a single category, for sensitivity. 
+
+**Chi-squared test result**: 
+$$X^2=9.8825, df=5, p-value=0.07863$$
+**Interpretation**: The association between race/ethnicity and medication adherence was not statistically significant at the conventional alpha level of 0.05. This suggests that differences in adherence across different racial/ethnic categories was potentially due to chance, and our analyses are potentially sensitive to consolidating 'Mexican American' and 'Other Hispanic' into a single category.
+
+```{r}
+print(chi_or_fisher(subset_1168_data, 'adherence', 'race_6cat'))
+```
+
+5. **Gender/Sex vs. Adherence**:
+
+**Chi-squared test result**: 
+$$X^2=4.1148, df=1, p-value=0.04251$$
+**Interpretation**: There is a statistically significant association between gender and medication adherence, with the p-value indicating that these differences are unlikely to be due to random chance.
+
+```{r}
+biv_sex <- chi_or_fisher(subset_1168_data, 'adherence', 'sex')
+print(biv_sex)
+```
+
+6. **Education Level vs. Adherence**:
+
+**Chi-squared test result**: 
+$$X^2=2.2859, df=4, p-value=0.6833$$
+**Interpretation**: The p-value of 0.6833 is well above the conventional alpha level of 0.05, which suggests that there is no statistically significant association between education level and adherence to cholesterol medication in this sample.
+
+```{r}
+biv_edu <- chi_or_fisher(subset_1168_data, 'adherence', 'educ_level')
+print(biv_edu)
+```
+
+7. **Marital Status vs. Adherence**:
+
+**Chi-squared test result**: 
+$$X^2=14.11, df=2, p-value=0.0008633$$
+**Interpretation**: The significantly small p-value suggests that marital status is associated with adherence, and is not likely due to random chance.
+
+```{r}
+biv_marital <- chi_or_fisher(subset_1168_data, 'adherence', 'marital_status')
+print(biv_marital)
+```
+
+8. **Alcohol Use vs. Adherence**:
+
+**Chi-squared test result**: 
+$$X^2=3.7807, df=1, p-value=0.05185$$
+**Interpretation**: The association between heavy alcohol use and medication adherence is on the borderline of statistical significance, indicating a potential relationship that may require further exploration.
+
+```{r}
+biv_alc <- chi_or_fisher(subset_1168_data, 'adherence', 'alc_heavy')
+print(biv_alc)
+```
+
+9. **Tobacco use vs. Adherence**:
+
+**Chi-squared test result**: 
+$$X^2=14.247, df=2, p-value=0.0008058$$
+**Interpretation**: The association between heavy smoking status and medication adherence is statistically significantly associated with medication adherence, with the association not likely due to random chance.
+
+```{r}
+biv_tobacco <- chi_or_fisher(subset_1168_data, 'adherence', 'smoking_hx')
+print(biv_tobacco)
+```
+
+10. **Age vs. Adherence**:
+
+A t-test requires satisfaction of assumptions of approximate normality in distribution in the two groups, and approximate equal variance.
+
+The sample size in both groups is 400+, so per the central limit theorem the distributions may be treated as approximately normal.
+
+**F-test result**:
+$$F=1.4563, num \ df = 400, denom \ df = 766, p-value=1.135 \times 10^{-5}$$
+**Interpretation**: There is a significant difference in variance between the two groups that is not likely due to chance. As such, the two groups have unequal variances.
+
+```{r}
+f_age <- var.test(age ~ adherence, subset_1168_data, 
+         alternative = "two.sided")
+print(f_age)
+```
+
+**T-test result**:
+$$t=-8.921, df=692.18, p-value < 2.2 \times 10^{-16}$$
+**Interpretation**: There is a significant association between age and medication adherence that is not explained by chance.
+
+```{r}
+biv_age <- t.test(subset_1168_data$age ~ subset_1168_data$adherence, 
+                  var.equal = FALSE)
+print(biv_age)
+```
+
+11. **BMI vs. Adherence**:
+
+Fisher's Exact test due to low expected counts.
+
+```{r}
+chisq.test(table(subset_1168_data$adherence, subset_1168_data$bmi_cat))$expected
+```
+
+
+**Fisher-Exact test result**: 
+$$p-value=0.2034$$
+**Interpretation**: There is not a statistically significant association between BMI categorization and medication adherence.
+
+```{r}
+biv_bmi_cat <- chi_or_fisher(subset_1168_data, 'adherence', 'bmi_cat')
+print(biv_bmi_cat)
+```
+
+Analysis was repeated using the continuous variable for BMI, for sensitivity of use of classification rather than a continuous value.
+
+A t-test requires satisfaction of assumptions of approximate normality in distribution in the two groups, and approximate equal variance.
+
+The sample size in both groups is 371+, so per the central limit theorem the distributions may be treated as approximately normal.
+
+**F-test result**:
+$$F=1.1086, num \ df = 371, denom \ df = 710, p-value=0.2488$$
+**Interpretation**: As the p-value is above the significance threshold of 0.05, we conclude that the two groups have equal variance.
+
+```{r}
+f_income <- var.test(bmi ~ adherence, subset_1168_data, 
+         alternative = "two.sided")
+print(f_income)
+```
+
+**T-test result**:
+$$t=-0.01693, df=1081, p-value = 0.9915$$
+**Interpretation**: There is not a statistically significant association between BMI and medication adherence. The consistency of these results indicate our analyses are robust for use of categorical BMI.
+
+```{r}
+biv_bmi <- t.test(subset_1168_data$bmi ~ subset_1168_data$adherence, 
+                  var.equal = TRUE)
+print(biv_bmi)
+```
+
+12. **Comorbid Cardiovascular Disease vs. Adherence**:
+
+**Chi-squared test result**: 
+$$X^2=8.1001, df=1, p-value=0.004426$$
+**Interpretation**: There is a statistically significant association between Comorbid Cardiovascular Disease History and medication adherence.
+
+```{r}
+biv_cvd <- chi_or_fisher(subset_1168_data, 'adherence', 'cvd_hx')
+print(biv_cvd)
+```
+
+Analysis was repeated using the continuous variable for BMI, for sensitivity of use of classification rather than a continuous value.
+
+A t-test requires satisfaction of assumptions of approximate normality in distribution in the two groups, and approximate equal variance.
+
+The sample size in both groups is 371+, so per the central limit theorem the distributions may be treated as approximately normal.
+
+**F-test result**:
+$$F=1.1086, num \ df = 371, denom \ df = 710, p-value=0.2488$$
+**Interpretation**: As the p-value is above the significance threshold of 0.05, we conclude that the two groups have equal variance.
+
+```{r}
+f_income <- var.test(bmi ~ adherence, subset_1168_data, 
+         alternative = "two.sided")
+print(f_income)
+```
+
+**T-test result**:
+$$t=-0.01693, df=1081, p-value = 0.9915$$
+**Interpretation**: There is not a statistically significant association between BMI and medication adherence. The consistency of these results indicate our analyses are robust for use of categorical BMI.
+
+```{r}
+biv_bmi <- t.test(subset_1168_data$bmi ~ subset_1168_data$adherence, 
+                  var.equal = TRUE)
+print(biv_bmi)
+```
+
+### Bivariate Analysis Interpretation
+The bivariate analysis indicates several noteworthy relationships between demographic, socio-economic, and behavioral factors and medication adherence. Income level, insurance status, marital status, age, sex, race/ethnicity, smoking status, and comorbid cardiovascular disease all show statistically significant correlations with adherence to cholesterol medication, suggesting these factors may play a critical role in whether individuals follow their prescribed medication regimen. 
+
+-   Age (older MORE likely)
+-   Sex (female MORE likely)
+-   Insurance Type (Government Insurance MORE likely)
+-   Family Income Ratio (higher, > 135% FPL MORE likely)
+-   Smoking status (Never smoker MORE likely)
+-   Cardiovacular Disease History (Negative history was MORE likely)
+
+-   Race/Ethnicity (Hispanic, Black, Multiracial LESS likely)
+-   Marital Status (Never Married LESS likely)
+
+Educational level and BMI were found to have little to no evidence of a statisticalyl significant association with adherence. Although the associations with heavy alcohol use did not reach statistical significance (with those with heavy alchol use LESS likely to demonstrate compliance), it may still be relevant in the broader context of medication adherence and are worth exploring further. These bivariate findings lay the groundwork for more comprehensive analyses that can untangle the complex interplay of these variables and inform targeted strategies for improving adherence.
+
+### Bivariate Analysis Visualization
+
+```{r}
+# Ensure NA is a factor level and label it as "No Response"
+subset_1168_data$adherence_factor <- factor(subset_1168_data$adherence, levels = c(FALSE, TRUE))
+subset_1168_data$adherence_factor <- addNA(subset_1168_data$adherence_factor)
+levels(subset_1168_data$adherence_factor)[is.na(levels(subset_1168_data$adherence_factor))] <- "No Response"
+
+# Define new colors for the bars, including NA
+new_colors <- c("TRUE" = "#1b9e77", "FALSE" = "#d95f02", "No Response" = "#4D4D4D")
+
+# Create the plots, making sure to use scale_fill_manual to include NA values
+# and set the axis titles correctly after coord_flip()
+
+# Income Category vs Adherence
+ggplot(subset_1168_data, aes(x = income_cat, fill = adherence_factor)) +
+  geom_bar() +
+  scale_fill_manual(values = new_colors) +
+  labs(title = "Adherence to Cholesterol Medication by Income Category",
+       y = "Count",
+       x = "Income Category") +
+  theme_minimal() +
+  coord_flip() +
+  theme(legend.title = element_blank())
+
+ggsave(here('figures', 'BV - Income Cat vs Adherence.png'),
+       device = 'png')
+
+# Income Ratio vs Adherence
+ggplot(subset_1168_data, aes(x = adherence_factor, y = income_ratio, fill = adherence_factor)) +
+  geom_boxplot() +
+  scale_fill_manual(values = new_colors) +
+  labs(title = "Income Ratio Distribution by Cholesterol Medication Adherence",
+       x = "Adherence to Medication",
+       y = "Income Ratio") +
+  theme_minimal() +
+  theme(legend.title = element_blank())
+
+ggsave(here('figures', 'BV - Income Ratio vs Adherence.png'),
+       device = 'png')
+
+# Health Insurance Classification vs Adherence
+ggplot(subset_1168_data, aes(x = ins_classif, fill = adherence_factor)) +
+  geom_bar() +
+  scale_fill_manual(values = new_colors) +
+  labs(title = "Adherence to Cholesterol Medication by Health Insurance Status",
+       y = "Count",
+       x = "Health Insurance Classification") +
+  theme_minimal() +
+  coord_flip() +
+  theme(legend.title = element_blank())
+
+ggsave(here('figures', 'BV - Insurance Classification vs Adherence.png'),
+       device = 'png')
+
+# Health Insurance Type vs Adherence
+ggplot(subset_1168_data, aes(x = ins_type, fill = adherence_factor)) +
+  geom_bar() +
+  scale_fill_manual(values = new_colors) +
+  labs(title = "Adherence to Cholesterol Medication by Health Insurance Type",
+       y = "Count",
+       x = "Health Insurance Type") +
+  theme_minimal() +
+  coord_flip() +
+  theme(legend.title = element_blank())
+
+ggsave(here('figures', 'BV - Insurance Type vs Adherence.png'),
+       device = 'png')
+
+# Race/Ethnicity vs Adherence
+ggplot(subset_1168_data, aes(x = race_ethn_5cat, fill = adherence_factor)) +
+  geom_bar() +
+  scale_fill_manual(values = new_colors) +
+  labs(title = "Adherence to Cholesterol Medication by Race/Ethnicity",
+       y = "Count",
+       x = "Race/Ethnicity") +
+  theme_minimal() +
+  coord_flip() +
+  theme(legend.title = element_blank())
+
+ggsave(here('figures', 'BV - Race-Ethnicity vs Adherence.png'),
+       device = 'png')
+
+# Gender vs Adherence
+ggplot(subset_1168_data, aes(x = sex, fill = adherence_factor)) +
+  geom_bar() +
+  scale_fill_manual(values = new_colors) +
+  labs(title = "Adherence to Cholesterol Medication by Gender",
+       y = "Count",
+       x = "Gender") +
+  theme_minimal() +
+  coord_flip() +
+  theme(legend.title = element_blank())
+
+ggsave(here('figures', 'BV - Gender vs Adherence.png'),
+       device = 'png')
+
+# Education Level vs Adherence
+ggplot(subset_1168_data, aes(x = educ_level, fill = adherence_factor)) +
+  geom_bar() +
+  scale_fill_manual(values = new_colors) +
+  labs(title = "Adherence to Cholesterol Medication by Education Level",
+       y = "Count",
+       x = "Education Level") +
+  theme_minimal() +
+  coord_flip() +
+  theme(legend.title = element_blank())
+
+
+ggsave(here('figures', 'BV - Education vs Adherence.png'),
+       device = 'png')
+
+# Martial Status vs Adherence
+ggplot(subset_1168_data, aes(x = marital_status, fill = adherence_factor)) +
+  geom_bar() +
+  scale_fill_manual(values = new_colors) +
+  labs(title = "Adherence to Cholesterol Medication by Marital Status",
+       y = "Count",
+       x = "Marital Status") +
+  theme_minimal() +
+  coord_flip() +
+  theme(legend.title = element_blank())
+
+ggsave(here('figures', 'BV - Marital Status vs Adherence.png'),
+       device = 'png')
+
+# Alcohol Use vs Adherence
+ggplot(subset_1168_data, aes(x = alc_heavy, fill = adherence_factor)) +
+  geom_bar() +
+  scale_fill_manual(values = new_colors) +
+  labs(title = "Adherence to Cholesterol Medication by Alcohol Use",
+       y = "Count",
+       x = "Alcohol Use") +
+  theme_minimal() +
+  coord_flip() +
+  theme(legend.title = element_blank())
+
+ggsave(here('figures', 'BV - Alcohol vs Adherence.png'),
+       device = 'png')
+
+# Tobacco Use vs Adherence
+ggplot(subset_1168_data, aes(x = smoking_hx, fill = adherence_factor)) +
+  geom_bar() +
+  scale_fill_manual(values = new_colors) +
+  labs(title = "Adherence to Cholesterol Medication by Tobacco Use",
+       y = "Count",
+       x = "Tobacco Use") +
+  theme_minimal() +
+  coord_flip() +
+  theme(legend.title = element_blank())
+
+ggsave(here('figures', 'BV - Tobacco vs Adherence.png'),
+       device = 'png')
+
+# Age vs Adherence Box Plot
+ggplot(subset_1168_data, aes(x = adherence_factor, y = age, fill = adherence_factor)) +
+  geom_boxplot() +
+  scale_fill_manual(values = new_colors) +
+  labs(title = "Age Distribution by Cholesterol Medication Adherence",
+       x = "Adherence to Medication",
+       y = "Age (Years)") +
+  theme_minimal() +
+  theme(legend.title = element_blank())
+
+ggsave(here('figures', 'BV - Age vs Adherence.png'),
+       device = 'png')
+
+# BMI vs Adherence Box Plot
+ggplot(subset_1168_data |> filter(!is.na(bmi)), aes(x = adherence_factor, y = bmi, fill = adherence_factor)) +
+  geom_boxplot() +
+  scale_fill_manual(values = new_colors) +
+  labs(title = "BMI Distribution by Cholesterol Medication Adherence",
+       x = "Adherence to Medication",
+       y = "Body Mass Index (kg per square meter)") +
+  theme_minimal() +
+  theme(legend.title = element_blank())
+
+ggsave(here('figures', 'BV - BMI vs Adherence.png'),
+       device = 'png')
+
+# BMI Category vs Adherence Box Plot
+ggplot(subset_1168_data, aes(x = bmi_cat, fill = adherence_factor)) +
+  geom_bar() +
+  scale_fill_manual(values = new_colors) +
+  labs(title = "Adherence to Cholesterol Medication by BMI Categorization",
+       y = "Count",
+       x = "Body Mass Index Classification") +
+  theme_minimal() +
+  coord_flip() +
+  theme(legend.title = element_blank())
+
+ggsave(here('figures', 'BV - BMI Cat vs Adherence.png'),
+       device = 'png')
+
+# CVD History vs Adherence Box Plot
+ggplot(subset_1168_data, aes(x = cvd_hx, fill = adherence_factor)) +
+  geom_bar() +
+  scale_fill_manual(values = new_colors) +
+  labs(title = "Adherence to Cholesterol Medication by Cardiovascular History",
+       y = "Count",
+       x = "Cardiovascular History") +
+  theme_minimal() +
+  coord_flip() +
+  theme(legend.title = element_blank())
+
+ggsave(here('figures', 'BV - CVDHX vs Adherence.png'),
+       device = 'png')
+
+
+```
+
+The resulting plots reveal several patterns related to adherence to cholesterol medication among adults:
+
+1-2. **Adherence to Cholesterol Medication by Income Category**: The bar chart displays adherence to cholesterol medication across different income categories. The group with an income greater than 185% of the Federal Poverty Level (FPL) shows a larger proportion of individuals adhering to medication compared to the other groups, which aligns with the statistical significance found in the chi-squared test. The box plot shows a clear difference in the family income ratio distribution between those who adhere and those who do not, with the median family income ratio of adherent individuals being higher. This is consistent with the t-test results, which indicated a significant difference in family income ratio between the two groups.
+
+3-4. **Adherence to Cholesterol Medication by Health Insurance Status**:
+These charts demonstrate that individuals with government health insurance and drug coverage show higher adherence compared to those without drug coverage or with unknown coverage. The significant chi-squared test results are visually corroborated here, showing the importance of insurance and drug coverage on medication adherence.
+
+5. **Adherence to Cholesterol Medication by Race/Ethnicity**:
+The distribution across race/ethnicity groups shows that Non-Hispanic White individuals have the highest count of adherence, followed by Non-Hispanic Black individuals. The chi-squared test results are visually corroborated here.
+
+6. **Adherence to Cholesterol Medication by Gender**:
+The chart indicates that males have a slightly higher count of non-adherence than females. The chi-squared test for gender was significant, suggesting a potential difference in adherence behavior between genders.
+
+7. **Adherence to Cholesterol Medication by Education Level**: This bar chart illustrates the relationship between education level and adherence to cholesterol medication. It shows that individuals with some college or an associate's degree tend to adhere more to their cholesterol medication regimen compared to other educational levels. However, this trend does not present a clear gradient with increasing education, as those with a high school diploma or GED show a lower adherence rate, which is slightly less than those who didn't complete high school. Meanwhile, individuals with college degrees or higher show a moderate adherence rate. The chi-squared test did not find a statistically significant association between education level and adherence, suggesting that factors other than education level may play a more influential role in determining medication adherence.
+
+8. **Adherence to Cholesterol Medication by Marital Status**: The visualization suggests that marital status may play a role in adherence to cholesterol medication. Individuals who are married or living with a partner show a higher adherence rate compared to those who have never been married or are widowed/divorced/separated. This is consistent with the chi-squared test indicating a significant association between marital status and medication adherence.
+
+9. **Adherence to Cholesterol Medication by Alcohol Use**: The bar chart suggests that heavy alcohol users have a slightly lower adherence to cholesterol medication than those who do not engage in heavy drinking, as indicated by the larger proportion of non-adherence in the 'TRUE' category for heavy drinking. However, this association is not statistically significant at the 0.05 level, with a p-value just above the threshold.
+
+10. **Adherence to Cholesterol Medication by Tobacco Use**: The chart illustrates adherence to cholesterol medication among different categories of tobacco users. Individuals who have never smoked show a higher proportion of adherence to medication, followed closely by past smokers, while current smokers have the lowest proportion of adherence. The chi-squared test result supports a significant association between tobacco use and medication adherence.
+
+11. **Age Distribution by Cholesterol Medication Adherence**: The box plot shows a clear difference in the age distribution between those who adhere and those who do not, with the median age of adherent individuals being higher. This is consistent with the t-test results, which indicated a significant difference in age between the two groups.
+
+12-13. **BMI by Cholesterol Medication Adherence**: The box plot and bar chart show significant similarity in the BMI distribution and BMI categorization frequencies between adherent and non-adherent individuals. This is consistent with the t-test and chi-square results, which indicated no significant difference in BMI between the two groups.
+
+14. **Comorbid Cardiovascular Disease by Medication Adherence**: The box plot demonstrates a significantly larger portion of those without a history of cardiovascular disease are adherent to cholesterol medication, compared to those that have a history of cardiovascular disease. This is consistent with the chi-square results.
+
+
+### Bivariate Analysis Visualization Interpretation
+Our bivariate analysis visualizations comprehensively encapsulate factors like socioeconomic status, insurance coverage, demographic characteristics, and personal behaviors, including marital status, alcohol, and tobacco use. These visual representations are crucial for a quick and clear understanding of the data and for effectively sharing our findings.
+
+Through these visualizations, we see that marital status continues to show a strong link with medication adherence, suggesting that being married or having a partner may contribute to better health practices. Tobacco use also appears to be an influential factor; individuals who have never smoked tend to adhere more to medication regimens, potentially indicative of overall healthier lifestyle choices. Alcohol use does not show a statistically significant association with adherence, but the pattern observed could be informative in a broader health context.
+
+The bivariate analysis also sheds light on the role of education in medication adherence. The visualizations do not reveal a clear-cut trend across education levels, suggesting that higher education does not necessarily equate to higher adherence. This could imply that education level alone is not a straightforward predictor of adherence, and that it must be considered alongside other factors that may exert a more complex influence.
+
+In summary, these visualizations underscore the intricate web of factors that interplay in the realm of medication adherence. They stress the importance of considering a range of variables, including demographic, socioeconomic, behavioral, and educational, to gain a full understanding. This comprehensive approach is vital for crafting effective interventions and policies to improve adherence rates and tackle health disparities. The next step in our analysis, a multivariate approach, will be critical to unravel the combined impact of these diverse factors on adherence to cholesterol medication.
